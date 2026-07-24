@@ -84,11 +84,17 @@ export default function PaginaConsulta() {
     <div className="shell">
       <header className="masthead">
         <div className="masthead-left">
-          <div className="eyebrow">Sistema de registro y control · v1.0</div>
-          <h1>Manifiesto</h1>
+          <div className="logo-mark">M</div>
+          <div>
+            <div className="eyebrow">Sistema de registro y control · v1.0</div>
+            <h1>Manifiesto</h1>
+          </div>
         </div>
         <nav className="masthead-right">
           <Link href="/" className="nav-tab">
+            Inicio
+          </Link>
+          <Link href="/registrar" className="nav-tab">
             Registrar producto
           </Link>
           <span className="nav-tab active">Consultar productos</span>
@@ -127,13 +133,13 @@ export default function PaginaConsulta() {
           ) : productos.length === 0 ? (
             <div className="empty-state">
               No hay productos que coincidan con la búsqueda. Registra uno desde{" "}
-              <Link href="/" style={{ color: "var(--forest)", fontWeight: 600 }}>
+              <Link href="/registrar" className="link-forest">
                 la interfaz de registro
               </Link>
               .
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
@@ -165,7 +171,7 @@ export default function PaginaConsulta() {
                       <td>
                         {p.nombre_proveedor}
                         <br />
-                        <span style={{ color: "var(--muted)", fontSize: 11 }}>
+                        <span className="subtext-muted">
                           {p.tipo_proveedor}
                         </span>
                       </td>
@@ -184,8 +190,8 @@ export default function PaginaConsulta() {
       </section>
 
       <div className="footer-note">
-        <span>Sistema de Registro y Control de Productos — Evaluación N.º 4</span>
-        <span>Calidad del Software · UNEXPO</span>
+        <span>Ingeniería de Software. Evaluación #4</span>
+        <span>Gustavo Reyes, Luis Maldonado, Abraham Rodríguez</span>
       </div>
     </div>
   );
