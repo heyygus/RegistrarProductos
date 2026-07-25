@@ -1,76 +1,115 @@
 # Manifiesto — Sistema de Registro y Control de Productos
 
-Proyecto para la Evaluación N.º 4 de Calidad del Software (UNEXPO). Incluye:
-- Interfaz de registro de productos (`/`)
-- Interfaz de respuesta (confirmación "Datos registrados" al guardar)
-- Interfaz de consulta de productos, con búsqueda y reporte exportable en CSV (`/consulta`)
-- Persistencia real en base de datos Postgres (Supabase)
+Aplicación web para el registro y control de productos en stock de un almacén, desarrollada como proyecto para la materia **Ingeniería de Software**. Permite registrar productos que ingresan al almacén con toda su trazabilidad (lote, fechas, operario, proveedor) y consultar, buscar y exportar lo registrado, con persistencia real en base de datos.
+
+**Demo en producción:** https://registrar-productos.vercel.app
+**Repositorio:** https://github.com/heyygus/RegistrarProductos
 
 ---
 
-## Paso 1 — Crear el proyecto en Supabase (gratis)
+## Tabla de contenido
 
-1. Entra a https://supabase.com y crea una cuenta (con GitHub es lo más rápido).
-2. Clic en **New project**. Ponle un nombre (ej. `registro-productos`), elige una contraseña de base de datos (guárdala) y una región cercana.
-3. Espera 1-2 minutos a que se aprovisione.
-4. Ve a **SQL Editor** (ícono de la izquierda) → **New query**.
-5. Copia y pega **todo** el contenido del archivo `supabase_schema.sql` (incluido en este proyecto) y dale **Run**. Esto crea la tabla `productos` con todas las reglas de validación.
-6. Ve a **Project Settings → API**. Ahí vas a encontrar:
-   - **Project URL** → esto es tu `NEXT_PUBLIC_SUPABASE_URL`
-   - **anon public key** → esto es tu `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- [Funcionalidad](#funcionalidad)
+- [Arquitectura y stack tecnológico](#arquitectura-y-stack-tecnológico)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Modelo de datos](#modelo-de-datos)
+- [Validaciones y reglas de negocio](#validaciones-y-reglas-de-negocio)
+- [Decisiones de diseño](#decisiones-de-diseño)
+- [Cómo correrlo localmente](#cómo-correrlo-localmente)
+- [Despliegue](#despliegue)
 
 ---
 
-## Paso 2 — Probarlo en tu computadora (opcional pero recomendado)
+## Funcionalidad
+
+El sistema está compuesto por tres interfaces:
+
+| Ruta | Descripción |
+|---|---|
+| `/` | Landing: presentación del sistema y accesos directos a las otras dos interfaces. |
+| `/registrar` | Interfaz de registro: formulario para dar de alta un producto en el almacén, con confirmación ("Datos registrados") al enviarlo. |
+| `/consulta` | Interfaz de respuesta/consulta: listado de productos registrados, con búsqueda por código, descripción o proveedor, y exportación de reporte en CSV. |
+
+## Arquitectura y stack tecnológico
+
+- **Framework:** [Next.js 14](https://nextjs.org/) (App Router) con React 18.
+- **Backend:** API Routes de Next.js (`app/api/productos/route.js`) — expone `GET` (listar/buscar) y `POST` (registrar), sin necesidad de un servidor separado.
+- **Base de datos:** [Supabase](https://supabase.com) (Postgres administrado), consumida mediante `@supabase/supabase-js`. La persistencia es real: los datos no dependen del navegador ni se pierden al recargar.
+- **Estilos:** CSS puro (`app/globals.css`), sin frameworks de UI. Fuente tipográfica: [Arimo](https://fonts.google.com/specimen/Arimo) (Google Fonts).
+- **Hosting:** [Vercel](https://vercel.com), con despliegue automático en cada `push` a `main` mediante integración con GitHub.
+
+## Estructura del proyecto
+
+```
+app/
+├── layout.js              Layout raíz compartido (fuente, franja superior)
+├── globals.css            Hoja de estilos única del proyecto
+├── page.js                Landing (/)
+├── registrar/
+│   └── page.js             Interfaz de registro (/registrar)
+├── consulta/
+│   └── page.js             Interfaz de consulta/respuesta (/consulta)
+└── api/
+    └── productos/
+        └── route.js         API REST (GET / POST) contra Supabase
+
+lib/
+└── supabaseClient.js       Cliente de Supabase inicializado con variables de entorno
+
+supabase_schema.sql         Script SQL para crear la tabla `productos` y sus reglas
+```
+
+## Modelo de datos
+
+La tabla `productos` (definida en `supabase_schema.sql`) contiene:
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | bigint (identity) | Folio autogenerado. |
+| `codigo_producto` | text | Obligatorio. |
+| `descripcion_producto` | text | Obligatorio. |
+| `fecha_registro` | date | Generado automáticamente (`default current_date`). |
+| `fecha_recepcion` | date | Obligatorio. |
+| `fecha_vencimiento` | date | Opcional (solo productos perecederos). |
+| `nombre_operario` / `apellido_operario` | text | Obligatorios. |
+| `tipo_identificador` | text | `Lote` \| `Unidades` \| `Caja`. |
+| `identificador_valor` | text | Valor del lote/unidades/caja. |
+| `cantidad_stock` | integer | Debe ser > 0. |
+| `ubicacion` | text | Obligatorio. |
+| `tipo_proveedor` | text | `Interno` \| `Externo`. |
+| `nombre_proveedor` | text | Obligatorio. |
+
+Row Level Security (RLS) está habilitado con políticas abiertas de lectura e inserción (sin edición ni borrado), suficiente para el alcance académico del proyecto; en un entorno productivo real esto se restringiría por usuario autenticado.
+
+## Validaciones y reglas de negocio
+
+Implementadas en dos capas, como práctica de aseguramiento de calidad (si una falla, la otra detiene el dato inválido igual):
+
+1. **API (`route.js`):** campos obligatorios no vacíos, cantidad en stock entera y mayor a 0, fecha de vencimiento posterior a la fecha de recepción.
+2. **Base de datos (`supabase_schema.sql`):** `check constraints` para `tipo_identificador`, `tipo_proveedor`, `cantidad_stock > 0` y `fecha_vencimiento > fecha_recepcion`.
+
+## Decisiones de diseño
+
+- **Separación de rutas por función** (`/`, `/registrar`, `/consulta`) en vez de una sola pantalla, para que cada interfaz tenga una URL propia y sea más clara la navegación.
+- **CSS centralizado en un solo archivo** (`globals.css`) usando clases reutilizables (`.panel`, `.ticket`, `.btn-primary`, etc.) en vez de estilos en línea, de modo que el diseño se pueda ajustar sin tocar la lógica de los componentes.
+- **Reporte exportable en CSV** en la interfaz de consulta, para cumplir el punto de "reporte opcional" y permitir integrar los datos con Excel/Sheets.
+
+## Cómo correrlo localmente
 
 ```bash
 # 1. Instalar dependencias
 npm install
 
-# 2. Crear tu archivo de variables de entorno
+# 2. Configurar variables de entorno
 cp .env.local.example .env.local
-# y pega ahí tu URL y tu anon key de Supabase
+# completar con la URL y anon key de un proyecto Supabase (ver supabase_schema.sql)
 
-# 3. Correr en modo desarrollo
+# 3. Levantar en modo desarrollo
 npm run dev
 ```
 
-Abre http://localhost:3000 — deberías ver el formulario de registro. Al enviarlo, el dato queda guardado en Supabase de verdad (puedes verlo en Supabase → **Table Editor** → tabla `productos`).
+Abre `http://localhost:3000`.
 
----
+## Despliegue
 
-## Paso 3 — Subir el proyecto a GitHub
-
-1. Crea un repositorio nuevo en GitHub (puede ser privado).
-2. Desde la carpeta del proyecto:
-
-```bash
-git init
-git add .
-git commit -m "Sistema de registro y control de productos"
-git branch -M main
-git remote add origin https://github.com/TU-USUARIO/TU-REPO.git
-git push -u origin main
-```
-
----
-
-## Paso 4 — Desplegar en Vercel
-
-1. Entra a https://vercel.com y crea una cuenta (con GitHub, para que sea inmediato).
-2. Clic en **Add New → Project**.
-3. Importa el repositorio que acabas de subir.
-4. En la sección **Environment Variables**, agrega las mismas dos variables:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-5. Clic en **Deploy**. En menos de un minuto tendrás una URL pública tipo `https://tu-proyecto.vercel.app`.
-
-Listo: el formulario, la base de datos y la consulta ya están funcionando en producción, en internet, de verdad.
-
----
-
-## Notas sobre el diseño
-
-- Se usan **políticas de acceso públicas (RLS)** en Supabase para simplificar la demo académica — cualquiera con la anon key puede leer e insertar, pero no editar ni borrar. Para un sistema en producción real, esto se limitaría con autenticación de usuarios.
-- El reporte de la interfaz de consulta se genera como **CSV** (abre directamente en Excel/Sheets), cumpliendo el punto opcional del enunciado.
-- La regla de negocio "la fecha de vencimiento debe ser posterior a la de recepción" está validada en **dos capas**: en el API (`route.js`) y en la base de datos (`check constraint`), como buena práctica de aseguramiento de calidad — si una falla, la otra la detiene igual.
+El proyecto está conectado a Vercel mediante integración con GitHub: cada `push` a la rama `main` dispara un nuevo despliegue automáticamente. Las variables de entorno (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) se configuran en el dashboard de Vercel, en **Project Settings → Environment Variables**.
